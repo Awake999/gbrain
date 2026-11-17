@@ -23,7 +23,7 @@
  * Engine-free: setup never opens the database itself.
  */
 import { realpathSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { removeHermesTurnHook, syncHermesTurnHook } from '../core/setup/hermes-turn-hook.ts';
 import { removeOpenclawTurnPlugin, syncOpenclawTurnPlugin } from '../core/setup/openclaw-turn-plugin.ts';
 import { describeOpenclawSkill, readOpenclawSkillState, removeOpenclawSkillPlugin, syncOpenclawSkillPlugin, type OpenclawSkillResult } from '../core/setup/openclaw-skill-plugin.ts';
@@ -359,7 +359,7 @@ function parseFlags(args: string[]): SetupFlags | string {
   if (typeof layout === 'string') return layout;
   if (layout.brain && (!['claude-code', 'codex'].includes(positionals[0] ?? '') || args.includes('--instructions-only') || args.includes('--remove'))) return '--shape shapes the brain behind gbrain setup claude-code or codex (not --instructions-only or --remove); nothing was written';
   const workspace = value('--workspace');
-  if (workspace !== undefined && !workspace.startsWith('/') && !workspace.startsWith('~')) return '--workspace needs an absolute path';
+  if (workspace !== undefined && !isAbsolute(workspace) && !workspace.startsWith('~')) return '--workspace needs an absolute path';
   const flagLoading = value('--skill-loading');
   if (flagLoading !== undefined && flagLoading !== 'resolve' && flagLoading !== 'shadow' && !isSkillLoading(flagLoading)) return `unknown --skill-loading '${flagLoading}'; pass off, spring, resolve or (openclaw) shadow`;
   const envLoading = process.env[SKILL_LOADING_ENV]?.trim();
@@ -544,7 +544,7 @@ export async function runSetup(args: string[], deps: { openclaw?: { bin?: string
   }
 
   const launcher = flags.gbrainBin ?? resolveGbrainBin();
-  if (!launcher || !launcher.startsWith('/')) {
+  if (!launcher || !isAbsolute(launcher)) {
     process.stderr.write('gbrain setup: cannot resolve an absolute gbrain launcher (GUI hosts inherit no PATH). Install gbrain globally (`bun install -g github:garrytan/gbrain`) or pass --gbrain-bin <absolute path>.\n');
     return 2;
   }
@@ -1054,7 +1054,7 @@ function describeInstructions(o: BrainFirstOutcome, dryRun: boolean): string {
 
 /** Whom the brain behind this launcher serves, for the shared-token warning; null when it cannot be read (the warning stays on). */
 function exposureServesVia(launcher: string | null | undefined): ExposureServes {
-  if (!launcher || !launcher.startsWith('/')) return null;
+  if (!launcher || !isAbsolute(launcher)) return null;
   try {
     const read = readServesStatus(launcher);
     return 'status' in read ? read.status.serves : null;
@@ -1066,7 +1066,7 @@ function exposureServesVia(launcher: string | null | undefined): ExposureServes 
 /** --serves several on the instructions alone: the brain must serve several people and its stdio server be bound. */
 function servesBound(flags: SetupFlags): boolean {
   const launcher = flags.gbrainBin ?? resolveGbrainBin();
-  const read = launcher && launcher.startsWith('/') ? readServesStatus(launcher) : null;
+  const read = launcher && isAbsolute(launcher) ? readServesStatus(launcher) : null;
   const ok = !!read && 'status' in read && read.status.serves === 'several' && !!read.status.stdio_member;
   if (!ok) process.stderr.write('gbrain setup: --serves several: this brain does not serve several people with a bound stdio server, so the instructions keep the one-person scoping lines.\n');
   return ok;
